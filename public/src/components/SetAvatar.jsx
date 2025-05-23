@@ -8,8 +8,7 @@ import { setAvatarRoute } from "../utils/APIRoutes";
 import Loader from "../assets/loader.gif"; // Adjust the path based on location
 
 
-// ✅ Updated paths for static assets (Stored inside `public/assets/`)
-const Loader = "/assets/loader.gif";
+
 const Logo = "/assets/logo.svg";
 const Robot = "/assets/robot.gif";
 
