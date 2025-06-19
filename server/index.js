@@ -24,12 +24,37 @@ mongoose.connect(process.env.MONGO_URL, {
     console.log(err.message);
   });
 
+// Root route handler
+app.get("/", (_req, res) => {
+  res.json({ 
+    message: "Welcome to Snappy Chat API",
+    status: "active",
+    endpoints: {
+      auth: "/api/auth",
+      messages: "/api/messages",
+      health: "/ping"
+    }
+  });
+});
+
+// Health check route
 app.get("/ping", (_req, res) => {
   return res.json({ msg: "Ping Successful" });
 });
 
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: `Route ${req.url} Not Found` });
+});
 
 const server = app.listen(process.env.PORT, () =>
   console.log(`Server started on ${process.env.PORT}`)
