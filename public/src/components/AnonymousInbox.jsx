@@ -1,12 +1,40 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import styled from "styled-components";
 import axios from "axios";
 import { getAnonymousInboxForReceiverRoute, requestIdentityRevelationRoute, stopReceivingRoute, getRevealedSenderInfoRoute } from "../utils/APIRoutes";
 import { IoArrowBack } from "react-icons/io5";
+import { IoArrowDown } from "react-icons/io5";
 
 export default function AnonymousInbox({ currentUser, handleBack }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleScroll = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollButton(!isNearBottom);
+    }
+  };
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     const fetchInbox = async () => {
@@ -79,7 +107,7 @@ export default function AnonymousInbox({ currentUser, handleBack }) {
           Refresh
         </button>
       </div>
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef}>
         {loading ? (
           <p>Loading messages...</p>
         ) : messages.length > 0 ? (
@@ -124,36 +152,45 @@ export default function AnonymousInbox({ currentUser, handleBack }) {
         ) : (
           <p>Your anonymous inbox is empty.</p>
         )}
+        <div ref={messagesEndRef} />
       </div>
+      {showScrollButton && (
+        <button className="scroll-to-bottom-btn" onClick={scrollToBottom}>
+          <IoArrowDown />
+        </button>
+      )}
     </Container>
   );
 }
 
 const Container = styled.div`
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  background-color: #1a1a2e;
-  color: white;
+  display: grid;
+  grid-template-rows: 10% 80% 10%;
+  gap: 0.1rem;
+  overflow: hidden;
+  @media screen and (min-width: 720px) and (max-width: 1080px) {
+    grid-template-rows: 15% 70% 15%;
+  }
 
   .inbox-header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #ffffff20;
+    padding: 0 2rem;
+    background-color: #2c3e50;
 
     .back-button {
       background: transparent;
       border: none;
       color: white;
-      font-size: 2rem;
+      font-size: 1.5rem;
       cursor: pointer;
     }
 
     h3 {
       font-size: 1.5rem;
+      margin: 0;
+      color: white;
     }
 
     .refresh-button {
@@ -166,94 +203,136 @@ const Container = styled.div`
   }
 
   .messages-container {
-    overflow-y: auto;
+    padding: 1rem 2rem;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .message {
-    background-color: #2c3e50;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    .message-text {
-      font-size: 1.1rem;
-    }
-    .timestamp {
-      font-size: 0.7rem;
-      text-align: right;
-      color: #bdc3c7;
-      margin-top: 0.5rem;
-    }
-    .sender-info {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-top: 0.5rem;
-      
-      .sender-avatar {
-        img {
-          width: 2rem;
-          height: 2rem;
-          border-radius: 50%;
-        }
-      }
-      
-      .sender-details {
-        p {
-          margin: 0;
-        }
-        
-        .sender-name {
-          font-size: 0.8rem;
-          color: #27ae60;
-          font-weight: bold;
-        }
-        
-        .revealed-status {
-          font-size: 0.7rem;
-          color: #bdc3c7;
-        }
+    gap: 1rem;
+    overflow: auto;
+    
+    &::-webkit-scrollbar {
+      width: 0.2rem;
+      &-thumb {
+        background-color: #ffffff39;
+        width: 0.1rem;
+        border-radius: 1rem;
       }
     }
     
-    .message-controls {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 0.5rem;
+    .message {
+      background: #34495e;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      border-left: 4px solid #3498db;
       
-      button {
-        padding: 0.3rem 0.6rem;
-        border: none;
-        border-radius: 0.3rem;
+      .message-text {
+        color: white;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+        word-wrap: break-word;
+      }
+      
+      .timestamp {
         font-size: 0.7rem;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
+        text-align: right;
+        color: #bdc3c7;
+        margin-top: 0.5rem;
       }
       
-      .reveal-btn {
-        background-color: #3498db;
-        color: white;
+      .sender-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
         
-        &:hover {
-          background-color: #2980b9;
+        .sender-avatar {
+          img {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+          }
         }
         
-        &:disabled {
-          background-color: #95a5a6;
-          cursor: not-allowed;
-          opacity: 0.7;
+        .sender-details {
+          p {
+            margin: 0;
+          }
+          
+          .sender-name {
+            font-size: 0.8rem;
+            color: #27ae60;
+            font-weight: bold;
+          }
+          
+          .revealed-status {
+            font-size: 0.7rem;
+            color: #bdc3c7;
+          }
         }
       }
       
-      .stop-btn {
-        background-color: #e74c3c;
-        color: white;
+      .message-controls {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
         
-        &:hover {
-          background-color: #c0392b;
+        button {
+          padding: 0.3rem 0.6rem;
+          border: none;
+          border-radius: 0.3rem;
+          font-size: 0.7rem;
+          cursor: pointer;
+          transition: background-color 0.3s ease;
+        }
+        
+        .reveal-btn {
+          background-color: #3498db;
+          color: white;
+          
+          &:hover {
+            background-color: #2980b9;
+          }
+          
+          &:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+            opacity: 0.7;
+          }
+        }
+        
+        .stop-btn {
+          background-color: #e74c3c;
+          color: white;
+          
+          &:hover {
+            background-color: #c0392b;
+          }
         }
       }
+    }
+  }
+
+  .scroll-to-bottom-btn {
+    position: absolute;
+    bottom: 2rem;
+    right: 2rem;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: #3498db;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+    z-index: 10;
+    
+    &:hover {
+      background: #2980b9;
+      transform: scale(1.1);
     }
   }
 `; 
