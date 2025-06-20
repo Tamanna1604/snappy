@@ -1,4 +1,4 @@
-const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
+const backendUrl = /*process.env.REACT_APP_BACKEND_URL ||*/ "http://localhost:5000";
 
 export const host = backendUrl;
 export const loginRoute = `${host}/api/auth/login`;
@@ -8,3 +8,4 @@ export const allUsersRoute = `${host}/api/auth/allusers`;
 export const sendMessageRoute = `${host}/api/messages/addmsg`;
 export const recieveMessageRoute = `${host}/api/messages/getmsg`;
 export const setAvatarRoute = `${host}/api/auth/setavatar`;
+export const topFriendsRoute = `${host}/api/messages/top-friends`;

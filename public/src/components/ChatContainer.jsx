@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import styled from "styled-components";
 import ChatInput from "./ChatInput";
-import Logout from "./Logout";
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
+import { IoArrowBack } from "react-icons/io5";
 import { sendMessageRoute, recieveMessageRoute } from "../utils/APIRoutes";
 
-
-export default function ChatContainer({ currentChat, socket }) {
+export default function ChatContainer({ currentChat, socket, handleGoBack }) {
   const [messages, setMessages] = useState([]);
   const scrollRef = useRef();
   const [arrivalMessage, setArrivalMessage] = useState(null);
@@ -74,6 +73,9 @@ export default function ChatContainer({ currentChat, socket }) {
     <Container>
       <div className="chat-header">
         <div className="user-details">
+          <button onClick={handleGoBack} className="back-button">
+            <IoArrowBack />
+          </button>
           <div className="avatar">
             <img
               src={`data:image/svg+xml;base64,${currentChat.avatarImage}`}
@@ -84,20 +86,19 @@ export default function ChatContainer({ currentChat, socket }) {
             <h3>{currentChat.username}</h3>
           </div>
         </div>
-        <Logout />
       </div>
       <div className="chat-messages">
         {messages.map((message) => {
           return (
-            <div ref={scrollRef} key={uuidv4()}>
-              <div
-                className={`message ${
-                  message.fromSelf ? "sended" : "recieved"
-                }`}
-              >
-                <div className="content ">
-                  <p>{message.message}</p>
-                </div>
+            <div
+              ref={scrollRef}
+              key={uuidv4()}
+              className={`message ${
+                message.fromSelf ? "sended" : "recieved"
+              }`}
+            >
+              <div className="content ">
+                <p>{message.message}</p>
               </div>
             </div>
           );
@@ -125,6 +126,15 @@ const Container = styled.div`
       display: flex;
       align-items: center;
       gap: 1rem;
+      .back-button {
+        background-color: transparent;
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+      }
       .avatar {
         img {
           height: 3rem;

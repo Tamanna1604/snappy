@@ -7,7 +7,7 @@ import { allUsersRoute, host } from "../utils/APIRoutes";
 import ChatContainer from "../components/ChatContainer";
 import Contacts from "../components/Contacts";
 import Welcome from "../components/Welcome";
-
+import TopFriendsContainer from "../components/TopFriendsContainer";
 
 export default function Chat() {
   const navigate = useNavigate();
@@ -15,22 +15,19 @@ export default function Chat() {
   const [contacts, setContacts] = useState([]);
   const [currentChat, setCurrentChat] = useState(undefined);
   const [currentUser, setCurrentUser] = useState(undefined);
+  const [isShowingTopFriends, setIsShowingTopFriends] = useState(false);
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const storedUser = localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY);
-      if (!storedUser) {
+    async function fetchUser() {
+      if (!localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)) {
         navigate("/login");
       } else {
-        const user = JSON.parse(storedUser);
+        const user = await JSON.parse(
+          localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)
+        );
         setCurrentUser(user);
-        console.log("Current User:", user);
-        if (!user.isAvatarImageSet) {
-          navigate("/setAvatar");
-        }
       }
-    };
-
+    }
     fetchUser();
   }, [navigate]);
 
@@ -42,23 +39,34 @@ export default function Chat() {
   }, [currentUser]);
 
   useEffect(() => {
-    const fetchContacts = async () => {
-      if (currentUser && currentUser.isAvatarImageSet) {
-        try {
-          const { data } = await axios.get(`${allUsersRoute}/${currentUser._id}`);
-          setContacts(data);
-          console.log("Contacts fetched:", data);
-        } catch (error) {
-          console.error("Error fetching contacts:", error);
+    async function fetchContacts() {
+      if (currentUser) {
+        if (currentUser.isAvatarImageSet) {
+          const data = await axios.get(`${allUsersRoute}/${currentUser._id}`);
+          setContacts(data.data);
+        } else {
+          navigate("/setAvatar");
         }
       }
-    };
-
+    }
     fetchContacts();
-  }, [currentUser]);
+  }, [currentUser, navigate]);
 
   const handleChatChange = (chat) => {
     setCurrentChat(chat);
+    setIsShowingTopFriends(false);
+  };
+
+  const handleGoBack = () => {
+    setCurrentChat(undefined);
+  };
+
+  const handleShowTopFriends = () => {
+    setIsShowingTopFriends(true);
+  };
+
+  const handleHideTopFriends = () => {
+    setIsShowingTopFriends(false);
   };
 
   return (
@@ -66,10 +74,19 @@ export default function Chat() {
       <Container>
         <div className="container">
           <Contacts contacts={contacts} changeChat={handleChatChange} />
-          {currentChat === undefined ? (
-            <Welcome />
+          {currentChat ? (
+            <ChatContainer
+              currentChat={currentChat}
+              socket={socket}
+              handleGoBack={handleGoBack}
+            />
+          ) : isShowingTopFriends ? (
+            <TopFriendsContainer
+              currentUser={currentUser}
+              handleGoBack={handleHideTopFriends}
+            />
           ) : (
-            <ChatContainer currentChat={currentChat} socket={socket} />
+            <Welcome handleShowTopFriends={handleShowTopFriends} />
           )}
         </div>
       </Container>

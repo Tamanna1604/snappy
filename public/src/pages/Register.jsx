@@ -5,7 +5,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { registerRoute } from "../utils/APIRoutes";
-import Logo from "./logo.svg";
+import Logo from "../assets/logo.svg";
 
 
 export default function Register() {
