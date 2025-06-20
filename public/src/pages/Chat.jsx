@@ -128,11 +128,11 @@ export default function Chat() {
           ) : showTopFriends ? (
             <TopFriendsContainer
               currentUser={currentUser}
-              handleBack={handleBackToWelcome}
+              handleGoBack={handleBackToWelcome}
             />
           ) : currentChat === undefined ? (
             <Welcome
-              onShowTopFriends={() => setShowTopFriends(true)}
+              handleShowTopFriends={() => setShowTopFriends(true)}
               onShowAnonymousInbox={handleShowAnonymousInbox}
               hasNewAnonymousMessage={hasNewAnonymousMessage}
             />

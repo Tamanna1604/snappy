@@ -26,14 +26,25 @@ router.get("/allusers/:id", getAllUsers);
 
 // ✅ Set Avatar (POST)
 router.post("/setavatar/:id", async (req, res, next) => {
-  console.log("Set Avatar API called for User ID:", req.params.id);
-  console.log("Request Body:", req.body);
-
-  if (!req.body.image) {
-    return res.status(400).json({ error: "Image is required" });
+  try {
+    const userId = req.params.id;
+    const avatarImage = req.body.image;
+    const userData = await User.findByIdAndUpdate(
+      userId,
+      {
+        isAvatarImageSet: true,
+        avatarImage,
+      },
+      { new: true }
+    );
+    return res.json({
+      isSet: userData.isAvatarImageSet,
+      image: userData.avatarImage,
+    });
+  } catch (ex) {
+    next(ex);
   }
-  next();
-}, setAvatar);
+});
 
 // ✅ Logout Route
 router.get("/logout/:id", logOut);

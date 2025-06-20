@@ -125,7 +125,7 @@ module.exports.getTopFriends = async (req, res, next) => {
 
     // --- Deep Dive Debugging ---
     
-    // Stage 1: Find all messages involving the current user
+    // Stage 1: Find all messages involving the current user (both regular and anonymous)
     const stage1_match = { $match: { users: objectId } };
     const messagesInvolvingUser = await Messages.aggregate([stage1_match]);
     console.log(`[getTopFriends] Stage 1 Result (messages involving user): Found ${messagesInvolvingUser.length} messages.`);
@@ -167,7 +167,7 @@ module.exports.getTopFriends = async (req, res, next) => {
 
   } catch (ex) {
     console.error("[getTopFriends] Error:", ex);
-    next(ex);
+    res.status(500).json({ msg: "Internal server error", error: ex.message });
   }
 };
 
