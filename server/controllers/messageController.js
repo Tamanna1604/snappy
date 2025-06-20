@@ -1,4 +1,5 @@
 const Messages = require("../models/messageModel");
+const User = require("../models/userModel");
 const mongoose = require("mongoose");
 
 module.exports.getMessages = async (req, res, next) => {
@@ -42,6 +43,10 @@ module.exports.getAnonymousChatForSender = async (req, res, next) => {
       return {
         fromSelf: true, // Since we're only getting messages sent by the current user
         message: msg.message.text,
+        id: msg._id.toString(),
+        identityRevealed: msg.identityRevealed || false,
+        identityRevealRequested: msg.identityRevealRequested || false,
+        receivingStopped: msg.receivingStopped || false,
       };
     });
     res.json(projectedMessages);
@@ -57,6 +62,15 @@ module.exports.getAnonymousInboxForReceiver = async (req, res, next) => {
   try {
     // We get the user's ID from the request parameters
     const userId = req.params.id;
+    
+    if (!userId) {
+      return res.status(400).json({ msg: "User ID is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ msg: "Invalid user ID format" });
+    }
+
     const messages = await Messages.find({
       users: userId, // Messages involving this user
       sender: { $ne: userId }, // But NOT sent by this user (only received)
@@ -64,16 +78,19 @@ module.exports.getAnonymousInboxForReceiver = async (req, res, next) => {
     }).sort({ updatedAt: 1 });
 
     const projectedMessages = messages.map((msg) => {
-      // Note: We are intentionally NOT including sender info.
       return {
         message: msg.message.text,
-        timestamp: msg.createdAt, // It's useful to know when it was sent
-        id: msg._id,
+        timestamp: msg.createdAt,
+        id: msg._id.toString(),
+        identityRevealed: msg.identityRevealed || false,
+        identityRevealRequested: msg.identityRevealRequested || false,
       };
     });
+    
     res.json(projectedMessages);
   } catch (ex) {
-    next(ex);
+    console.error("Error in getAnonymousInboxForReceiver:", ex);
+    res.status(500).json({ msg: "Internal server error", error: ex.message });
   }
 };
 
@@ -151,5 +168,155 @@ module.exports.getTopFriends = async (req, res, next) => {
   } catch (ex) {
     console.error("[getTopFriends] Error:", ex);
     next(ex);
+  }
+};
+
+// Function to request identity revelation (called by receiver)
+module.exports.requestIdentityRevelation = async (req, res, next) => {
+  try {
+    const { messageId } = req.body;
+    
+    if (!messageId) {
+      return res.status(400).json({ msg: "Message ID is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ msg: "Invalid message ID format" });
+    }
+
+    // Update the message to set the request flag
+    const message = await Messages.findByIdAndUpdate(
+      messageId,
+      { identityRevealRequested: true },
+      { new: true }
+    );
+
+    if (!message) {
+      return res.status(404).json({ msg: "Message not found" });
+    }
+
+    res.json({ msg: "Identity revelation requested successfully" });
+  } catch (ex) {
+    console.error("Error in requestIdentityRevelation:", ex);
+    next(ex);
+  }
+};
+
+// Function to reveal sender's identity (called by sender)
+module.exports.revealIdentity = async (req, res, next) => {
+  try {
+    const { messageId } = req.body;
+    
+    if (!messageId) {
+      return res.status(400).json({ msg: "Message ID is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ msg: "Invalid message ID format" });
+    }
+
+    // Update the message to reveal identity
+    const message = await Messages.findByIdAndUpdate(
+      messageId,
+      { identityRevealed: true },
+      { new: true }
+    );
+
+    if (!message) {
+      return res.status(404).json({ msg: "Message not found" });
+    }
+
+    // Get sender info separately to avoid populate issues
+    const sender = await User.findById(message.sender).select('username avatarImage');
+    
+    if (!sender) {
+      return res.status(404).json({ msg: "Sender not found" });
+    }
+
+    res.json({ 
+      msg: "Identity revealed successfully",
+      senderUsername: sender.username,
+      senderAvatar: sender.avatarImage
+    });
+  } catch (ex) {
+    console.error("Error in revealIdentity:", ex);
+    res.status(500).json({ msg: "Internal server error", error: ex.message });
+  }
+};
+
+// Function to stop receiving messages from a specific sender
+module.exports.stopReceivingMessages = async (req, res, next) => {
+  try {
+    const { messageId } = req.body;
+    
+    if (!messageId) {
+      return res.status(400).json({ msg: "Message ID is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ msg: "Invalid message ID format" });
+    }
+    
+    // Find the message to get sender info
+    const message = await Messages.findById(messageId);
+    
+    if (!message) {
+      return res.status(404).json({ msg: "Message not found" });
+    }
+
+    // Update all anonymous messages from this sender to this receiver
+    const result = await Messages.updateMany(
+      {
+        sender: message.sender,
+        users: { $all: [message.sender, message.users.find(u => u.toString() !== message.sender.toString())] },
+        isAnonymous: true,
+      },
+      { receivingStopped: true }
+    );
+
+    res.json({ msg: "Messages stopped successfully" });
+  } catch (ex) {
+    console.error("Error in stopReceivingMessages:", ex);
+    next(ex);
+  }
+};
+
+// Function to get revealed sender information
+module.exports.getRevealedSenderInfo = async (req, res, next) => {
+  try {
+    const { messageId } = req.params;
+    
+    if (!messageId) {
+      return res.status(400).json({ msg: "Message ID is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ msg: "Invalid message ID format" });
+    }
+
+    const message = await Messages.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({ msg: "Message not found" });
+    }
+
+    if (!message.identityRevealed) {
+      return res.status(403).json({ msg: "Identity not revealed" });
+    }
+
+    // Get sender info separately to avoid populate issues
+    const sender = await User.findById(message.sender).select('username avatarImage');
+
+    if (!sender) {
+      return res.status(404).json({ msg: "Sender not found" });
+    }
+
+    res.json({
+      senderUsername: sender.username,
+      senderAvatar: sender.avatarImage
+    });
+  } catch (ex) {
+    console.error("Error in getRevealedSenderInfo:", ex);
+    res.status(500).json({ msg: "Internal server error", error: ex.message });
   }
 };

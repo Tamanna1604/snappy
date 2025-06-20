@@ -15,6 +15,18 @@ const MessageSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    identityRevealed: {
+      type: Boolean,
+      default: false,
+    },
+    identityRevealRequested: {
+      type: Boolean,
+      default: false,
+    },
+    receivingStopped: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

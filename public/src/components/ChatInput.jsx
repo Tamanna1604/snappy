@@ -4,23 +4,27 @@ import { IoMdSend } from "react-icons/io";
 import styled from "styled-components";
 import Picker from "emoji-picker-react";
 
-
-export default function ChatInput({ handleSendMsg }) {
+export default function ChatInput({ handleSendMsg, disabled = false }) {
   const [msg, setMsg] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
   const handleEmojiPickerhideShow = () => {
-    setShowEmojiPicker(!showEmojiPicker);
+    if (!disabled) {
+      setShowEmojiPicker(!showEmojiPicker);
+    }
   };
 
   const handleEmojiClick = (event, emojiObject) => {
-    let message = msg;
-    message += emojiObject.emoji;
-    setMsg(message);
+    if (!disabled) {
+      let message = msg;
+      message += emojiObject.emoji;
+      setMsg(message);
+    }
   };
 
   const sendChat = (event) => {
     event.preventDefault();
-    if (msg.length > 0) {
+    if (msg.length > 0 && !disabled) {
       handleSendMsg(msg);
       setMsg("");
     }
@@ -30,18 +34,22 @@ export default function ChatInput({ handleSendMsg }) {
     <Container>
       <div className="button-container">
         <div className="emoji">
-          <BsEmojiSmileFill onClick={handleEmojiPickerhideShow} />
+          <BsEmojiSmileFill 
+            onClick={handleEmojiPickerhideShow}
+            style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+          />
           {showEmojiPicker && <Picker onEmojiClick={handleEmojiClick} />}
         </div>
       </div>
       <form className="input-container" onSubmit={(event) => sendChat(event)}>
         <input
           type="text"
-          placeholder="type your message here"
-          onChange={(e) => setMsg(e.target.value)}
+          placeholder={disabled ? "Messages blocked" : "type your message here"}
+          onChange={(e) => !disabled && setMsg(e.target.value)}
           value={msg}
+          disabled={disabled}
         />
-        <button type="submit">
+        <button type="submit" disabled={disabled}>
           <IoMdSend />
         </button>
       </form>
@@ -121,6 +129,11 @@ const Container = styled.div`
       &:focus {
         outline: none;
       }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
     }
     button {
       padding: 0.3rem 2rem;
@@ -139,6 +152,12 @@ const Container = styled.div`
       svg {
         font-size: 2rem;
         color: white;
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: #666;
       }
     }
   }

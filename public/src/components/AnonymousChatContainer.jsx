@@ -7,6 +7,7 @@ import { IoArrowBack } from "react-icons/io5";
 import {
   sendMessageRoute,
   getAnonymousChatForSenderRoute,
+  revealIdentityRoute,
 } from "../utils/APIRoutes";
 
 export default function AnonymousChatContainer({
@@ -15,6 +16,8 @@ export default function AnonymousChatContainer({
   handleGoBack,
 }) {
   const [messages, setMessages] = useState([]);
+  const [canSendMessages, setCanSendMessages] = useState(true);
+  const [pendingRevealRequest, setPendingRevealRequest] = useState(false);
   const scrollRef = useRef();
 
   useEffect(() => {
@@ -27,6 +30,14 @@ export default function AnonymousChatContainer({
         to: currentChat._id,
       });
       setMessages(response.data);
+      
+      // Check if any message has receivingStopped flag
+      const hasStoppedReceiving = response.data.some(msg => msg.receivingStopped);
+      setCanSendMessages(!hasStoppedReceiving);
+      
+      // Check if any message has identityRevealRequested flag
+      const hasRevealRequest = response.data.some(msg => msg.identityRevealRequested);
+      setPendingRevealRequest(hasRevealRequest);
     };
 
     if (currentChat) {
@@ -35,6 +46,8 @@ export default function AnonymousChatContainer({
   }, [currentChat]);
 
   const handleSendMsg = async (msg) => {
+    if (!canSendMessages) return;
+    
     const data = await JSON.parse(
       localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)
     );
@@ -56,6 +69,33 @@ export default function AnonymousChatContainer({
     const msgs = [...messages];
     msgs.push({ fromSelf: true, message: msg });
     setMessages(msgs);
+  };
+
+  const handleRevealIdentity = async () => {
+    try {
+      const data = await JSON.parse(
+        localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)
+      );
+      
+      // Find the first message that has a reveal request
+      const messageWithRequest = messages.find(msg => msg.identityRevealRequested);
+      if (messageWithRequest) {
+        await axios.post(revealIdentityRoute, { messageId: messageWithRequest.id });
+        setPendingRevealRequest(false);
+        // Update the message to show identity is revealed
+        setMessages(prev => prev.map(msg => 
+          msg.identityRevealRequested 
+            ? { ...msg, identityRevealed: true, identityRevealRequested: false }
+            : msg
+        ));
+        
+        // Show a success message
+        alert("Identity revealed successfully!");
+      }
+    } catch (error) {
+      console.error("Failed to reveal identity:", error);
+      alert("Failed to reveal identity. Please try again.");
+    }
   };
 
   useEffect(() => {
@@ -94,7 +134,22 @@ export default function AnonymousChatContainer({
             <h3>Anonymous Chat with {currentChat.username}</h3>
           </div>
         </div>
+        <div className="header-controls">
+          {pendingRevealRequest && (
+            <button className="reveal-identity-btn" onClick={handleRevealIdentity}>
+              Reveal Identity
+            </button>
+          )}
+          <button onClick={() => window.location.reload()} className="refresh-button">
+            Refresh
+          </button>
+        </div>
       </div>
+      {!canSendMessages && (
+        <div className="blocked-notice">
+          <p>This user has stopped receiving anonymous messages from you.</p>
+        </div>
+      )}
       <div className="chat-messages">
         {messages.map((message) => {
           return (
@@ -112,7 +167,7 @@ export default function AnonymousChatContainer({
           );
         })}
       </div>
-      <ChatInput handleSendMsg={handleSendMsg} />
+      <ChatInput handleSendMsg={handleSendMsg} disabled={!canSendMessages} />
     </Container>
   );
 }
@@ -130,7 +185,7 @@ const Container = styled.div`
     justify-content: space-between;
     align-items: center;
     padding: 0 2rem;
-    background-color: #2c3e50; // Dark slate blue for anonymous mode
+    background-color: #2c3e50;
     .user-details {
       display: flex;
       align-items: center;
@@ -153,6 +208,44 @@ const Container = styled.div`
         }
       }
     }
+    .header-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      
+      .reveal-identity-btn {
+        padding: 0.5rem 1rem;
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        border-radius: 0.3rem;
+        cursor: pointer;
+        font-weight: bold;
+        &:hover {
+          background-color: #c0392b;
+        }
+      }
+      
+      .refresh-button {
+        padding: 0.5rem 1rem;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 0.3rem;
+        cursor: pointer;
+        font-weight: bold;
+        &:hover {
+          background-color: #2980b9;
+        }
+      }
+    }
+  }
+  .blocked-notice {
+    background-color: #e74c3c;
+    color: white;
+    padding: 0.5rem;
+    text-align: center;
+    font-size: 0.9rem;
   }
   .chat-messages {
     padding: 1rem 2rem;
