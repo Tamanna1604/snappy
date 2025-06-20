@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import Robot from "../assets/robot.gif";
-import Logout from "./Logout";
+import UserOptionsDropdown from "./UserOptionsDropdown";
 
 
 /*https://drive.google.com/file/d/1h5aKYR0-lBAoi8YTiUWS-Gyp9PQWmI91/view?usp=drive_link*/
 // ✅ Use correct asset path for public folder
 
 
-export default function Welcome({ handleShowTopFriends }) {
+export default function Welcome({ handleShowTopFriends, onShowAnonymousInbox, hasNewAnonymousMessage }) {
   const [userName, setUserName] = useState("");
 
   useEffect(() => {
@@ -27,9 +27,12 @@ export default function Welcome({ handleShowTopFriends }) {
           </button>
         </div>
         <div className="header-right">
-          <button className="btn-secondary">Anonymous Message</button>
+          <button onClick={onShowAnonymousInbox} className="btn-secondary inbox-btn">
+            Anonymous Inbox
+            {hasNewAnonymousMessage && <div className="notification-dot"></div>}
+          </button>
           <button className="btn-secondary">Game Mode</button>
-          <Logout />
+          <UserOptionsDropdown />
         </div>
       </div>
       <img src={Robot} alt="Welcome Bot" onError={(e) => console.error("Image failed to load:", e)} />
@@ -77,6 +80,33 @@ const Container = styled.div`
   }
   span {
     color: #4e0eff;
+  }
+  .feature-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+
+    button {
+      /* ... other button styles ... */
+    }
+
+    .inbox-btn {
+      position: relative;
+      background-color: #3498db;
+      &:hover {
+        background-color: #2980b9;
+      }
+      .notification-dot {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        width: 10px;
+        height: 10px;
+        background-color: red;
+        border-radius: 50%;
+        border: 2px solid white;
+      }
+    }
   }
 `;
 

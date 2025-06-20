@@ -4,53 +4,53 @@ import ChatInput from "./ChatInput";
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
 import { IoArrowBack } from "react-icons/io5";
-import { sendMessageRoute, recieveMessageRoute } from "../utils/APIRoutes";
+import {
+  sendMessageRoute,
+  getAnonymousChatForSenderRoute,
+} from "../utils/APIRoutes";
 
-export default function ChatContainer({
+export default function AnonymousChatContainer({
   currentChat,
   socket,
-  handleBackToWelcome,
-  handleStartAnonymousChat,
+  handleGoBack,
 }) {
   const [messages, setMessages] = useState([]);
   const scrollRef = useRef();
-  const [arrivalMessage, setArrivalMessage] = useState(null);
-
-  useEffect(async () => {
-    const data = await JSON.parse(
-      localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)
-    );
-    const response = await axios.post(recieveMessageRoute, {
-      from: data._id,
-      to: currentChat._id,
-    });
-    setMessages(response.data);
-  }, [currentChat]);
 
   useEffect(() => {
-    const getCurrentChat = async () => {
-      if (currentChat) {
-        await JSON.parse(
-          localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)
-        )._id;
-      }
+    const fetchAnonymousMessages = async () => {
+      const data = await JSON.parse(
+        localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)
+      );
+      const response = await axios.post(getAnonymousChatForSenderRoute, {
+        from: data._id,
+        to: currentChat._id,
+      });
+      setMessages(response.data);
     };
-    getCurrentChat();
+
+    if (currentChat) {
+      fetchAnonymousMessages();
+    }
   }, [currentChat]);
 
   const handleSendMsg = async (msg) => {
     const data = await JSON.parse(
       localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)
     );
-    socket.current.emit("send-msg", {
-      to: currentChat._id,
-      from: data._id,
-      msg,
-    });
+
     await axios.post(sendMessageRoute, {
       from: data._id,
       to: currentChat._id,
       message: msg,
+      isAnonymous: true,
+    });
+
+    socket.current.emit("send-msg", {
+      to: currentChat._id,
+      from: data._id,
+      msg,
+      isAnonymous: true,
     });
 
     const msgs = [...messages];
@@ -60,17 +60,18 @@ export default function ChatContainer({
 
   useEffect(() => {
     if (socket.current) {
-      socket.current.on("msg-recieve", (data) => {
-        if (!data.isAnonymous && data.from === currentChat._id) {
-          setArrivalMessage({ fromSelf: false, message: data.msg });
+      const messageListener = (data) => {
+        if (data.isAnonymous && data.from === currentChat._id) {
+          setMessages((prev) => [...prev, { fromSelf: false, message: data.msg }]);
         }
-      });
-    }
-  }, [currentChat, socket]);
+      };
+      socket.current.on("msg-recieve", messageListener);
 
-  useEffect(() => {
-    arrivalMessage && setMessages((prev) => [...prev, arrivalMessage]);
-  }, [arrivalMessage]);
+      return () => {
+        socket.current.off("msg-recieve", messageListener);
+      };
+    }
+  }, [socket, currentChat]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -80,7 +81,7 @@ export default function ChatContainer({
     <Container>
       <div className="chat-header">
         <div className="user-details">
-          <button onClick={handleBackToWelcome} className="back-button">
+          <button onClick={handleGoBack} className="back-button">
             <IoArrowBack />
           </button>
           <div className="avatar">
@@ -90,28 +91,22 @@ export default function ChatContainer({
             />
           </div>
           <div className="username">
-            <h3>{currentChat.username}</h3>
+            <h3>Anonymous Chat with {currentChat.username}</h3>
           </div>
         </div>
-        <button
-          className="send-anonymously-btn"
-          onClick={() => handleStartAnonymousChat(currentChat)}
-        >
-          Send Anonymously
-        </button>
       </div>
       <div className="chat-messages">
         {messages.map((message) => {
           return (
-            <div
-              ref={scrollRef}
-              key={uuidv4()}
-              className={`message ${
-                message.fromSelf ? "sended" : "recieved"
-              }`}
-            >
-              <div className="content ">
-                <p>{message.message}</p>
+            <div ref={scrollRef} key={uuidv4()}>
+              <div
+                className={`message ${
+                  message.fromSelf ? "sended" : "recieved"
+                }`}
+              >
+                <div className="content ">
+                  <p>{message.message}</p>
+                </div>
               </div>
             </div>
           );
@@ -135,18 +130,17 @@ const Container = styled.div`
     justify-content: space-between;
     align-items: center;
     padding: 0 2rem;
+    background-color: #2c3e50; // Dark slate blue for anonymous mode
     .user-details {
       display: flex;
       align-items: center;
       gap: 1rem;
       .back-button {
-        background-color: transparent;
+        background: transparent;
         border: none;
         color: white;
         font-size: 1.5rem;
         cursor: pointer;
-        display: flex;
-        align-items: center;
       }
       .avatar {
         img {
@@ -157,20 +151,6 @@ const Container = styled.div`
         h3 {
           color: white;
         }
-      }
-    }
-    .send-anonymously-btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.5rem;
-      background-color: #f39c12;
-      border: none;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-
-      &:hover {
-        background-color: #e67e22;
       }
     }
   }
@@ -206,14 +186,14 @@ const Container = styled.div`
     .sended {
       justify-content: flex-end;
       .content {
-        background-color: #4f04ff21;
+        background-color: #3498db;
       }
     }
     .recieved {
       justify-content: flex-start;
       .content {
-        background-color: #9900ff20;
+        background-color: #95a5a6;
       }
     }
   }
-`;
+`; 

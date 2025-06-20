@@ -9,6 +9,7 @@ module.exports.getMessages = async (req, res, next) => {
       users: {
         $all: [from, to],
       },
+      isAnonymous: false, // Ensure we only get regular messages
     }).sort({ updatedAt: 1 });
 
     const projectedMessages = messages.map((msg) => {
@@ -23,13 +24,67 @@ module.exports.getMessages = async (req, res, next) => {
   }
 };
 
+// This function is for the SENDER.
+// It gets the anonymous messages sent BY the current user TO a specific recipient.
+// Each person has their own separate anonymous chat history.
+module.exports.getAnonymousChatForSender = async (req, res, next) => {
+  try {
+    const { from, to } = req.body;
+    
+    // Only get messages sent BY the current user TO the recipient
+    const messages = await Messages.find({
+      sender: from, // Messages sent by the current user
+      users: { $all: [from, to] }, // Between these two users
+      isAnonymous: true,
+    }).sort({ updatedAt: 1 });
+
+    const projectedMessages = messages.map((msg) => {
+      return {
+        fromSelf: true, // Since we're only getting messages sent by the current user
+        message: msg.message.text,
+      };
+    });
+    res.json(projectedMessages);
+  } catch (ex) {
+    next(ex);
+  }
+};
+
+// This function is for the RECEIVER.
+// It gets all anonymous messages sent TO the current user,
+// but it does not reveal who the sender is.
+module.exports.getAnonymousInboxForReceiver = async (req, res, next) => {
+  try {
+    // We get the user's ID from the request parameters
+    const userId = req.params.id;
+    const messages = await Messages.find({
+      users: userId, // Messages involving this user
+      sender: { $ne: userId }, // But NOT sent by this user (only received)
+      isAnonymous: true,
+    }).sort({ updatedAt: 1 });
+
+    const projectedMessages = messages.map((msg) => {
+      // Note: We are intentionally NOT including sender info.
+      return {
+        message: msg.message.text,
+        timestamp: msg.createdAt, // It's useful to know when it was sent
+        id: msg._id,
+      };
+    });
+    res.json(projectedMessages);
+  } catch (ex) {
+    next(ex);
+  }
+};
+
 module.exports.addMessage = async (req, res, next) => {
   try {
-    const { from, to, message } = req.body;
+    const { from, to, message, isAnonymous } = req.body;
     const data = await Messages.create({
       message: { text: message },
       users: [from, to],
       sender: from,
+      isAnonymous: isAnonymous || false,
     });
 
     if (data) return res.json({ msg: "Message added successfully." });

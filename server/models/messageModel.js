@@ -11,6 +11,10 @@ const MessageSchema = mongoose.Schema(
       ref: "User",
       required: true,
     },
+    isAnonymous: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

@@ -113,7 +113,17 @@ io.on("connection", (socket) => {
   socket.on("send-msg", (data) => {
     const sendUserSocket = onlineUsers.get(data.to);
     if (sendUserSocket) {
-      socket.to(sendUserSocket).emit("msg-recieve", data.msg);
+      if (data.isAnonymous) {
+        // For anonymous messages, send the whole data object
+        // This includes 'from' so the recipient client can manage notifications
+        socket.to(sendUserSocket).emit("msg-recieve", data);
+      } else {
+        // For regular messages, send only the message text to maintain original functionality
+        socket.to(sendUserSocket).emit("msg-recieve", {
+          msg: data.msg,
+          from: data.from,
+        });
+      }
     }
   });
 });

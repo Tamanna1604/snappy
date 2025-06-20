@@ -119,6 +119,7 @@ const Container = styled.div`
       gap: 1rem;
       align-items: center;
       transition: 0.5s ease-in-out;
+      position: relative;
 
       .avatar {
         img {

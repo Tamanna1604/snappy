@@ -8,6 +8,8 @@ import ChatContainer from "../components/ChatContainer";
 import Contacts from "../components/Contacts";
 import Welcome from "../components/Welcome";
 import TopFriendsContainer from "../components/TopFriendsContainer";
+import AnonymousChatContainer from "../components/AnonymousChatContainer";
+import AnonymousInbox from "../components/AnonymousInbox";
 
 export default function Chat() {
   const navigate = useNavigate();
@@ -15,7 +17,11 @@ export default function Chat() {
   const [contacts, setContacts] = useState([]);
   const [currentChat, setCurrentChat] = useState(undefined);
   const [currentUser, setCurrentUser] = useState(undefined);
-  const [isShowingTopFriends, setIsShowingTopFriends] = useState(false);
+  const [showTopFriends, setShowTopFriends] = useState(false);
+  const [isAnonymousChat, setIsAnonymousChat] = useState(false);
+  const [anonymousChatUser, setAnonymousChatUser] = useState(undefined);
+  const [showAnonymousInbox, setShowAnonymousInbox] = useState(false);
+  const [hasNewAnonymousMessage, setHasNewAnonymousMessage] = useState(false);
 
   useEffect(() => {
     async function fetchUser() {
@@ -35,6 +41,16 @@ export default function Chat() {
     if (currentUser) {
       socket.current = io(host);
       socket.current.emit("add-user", currentUser._id);
+      
+      socket.current.on("msg-recieve", (data) => {
+        if (data.isAnonymous) {
+          setHasNewAnonymousMessage(true);
+        }
+      });
+
+      return () => {
+        socket.current.off("msg-recieve");
+      };
     }
   }, [currentUser]);
 
@@ -54,39 +70,79 @@ export default function Chat() {
 
   const handleChatChange = (chat) => {
     setCurrentChat(chat);
-    setIsShowingTopFriends(false);
+    setShowTopFriends(false);
+    setIsAnonymousChat(false);
+    setShowAnonymousInbox(false);
   };
 
-  const handleGoBack = () => {
+  const handleStartAnonymousChat = (user) => {
+    setAnonymousChatUser(user);
+    setIsAnonymousChat(true);
     setCurrentChat(undefined);
+    setShowTopFriends(false);
+    setShowAnonymousInbox(false);
+  };
+
+  const handleShowAnonymousInbox = () => {
+    setShowAnonymousInbox(true);
+    setHasNewAnonymousMessage(false);
+    setCurrentChat(undefined);
+    setShowTopFriends(false);
+    setIsAnonymousChat(false);
+  };
+
+  const handleBackToWelcome = () => {
+    setCurrentChat(undefined);
+    setShowTopFriends(false);
+    setIsAnonymousChat(false);
+    setShowAnonymousInbox(false);
   };
 
   const handleShowTopFriends = () => {
-    setIsShowingTopFriends(true);
+    setShowTopFriends(true);
   };
 
   const handleHideTopFriends = () => {
-    setIsShowingTopFriends(false);
+    setShowTopFriends(false);
   };
 
   return (
     <>
       <Container>
         <div className="container">
-          <Contacts contacts={contacts} changeChat={handleChatChange} />
-          {currentChat ? (
+          <Contacts
+            contacts={contacts}
+            changeChat={handleChatChange}
+          />
+          {isAnonymousChat && anonymousChatUser ? (
+            <AnonymousChatContainer
+              currentChat={anonymousChatUser}
+              socket={socket}
+              handleGoBack={handleBackToWelcome}
+            />
+          ) : showAnonymousInbox ? (
+            <AnonymousInbox
+              currentUser={currentUser}
+              handleBack={handleBackToWelcome}
+            />
+          ) : showTopFriends ? (
+            <TopFriendsContainer
+              currentUser={currentUser}
+              handleBack={handleBackToWelcome}
+            />
+          ) : currentChat === undefined ? (
+            <Welcome
+              onShowTopFriends={() => setShowTopFriends(true)}
+              onShowAnonymousInbox={handleShowAnonymousInbox}
+              hasNewAnonymousMessage={hasNewAnonymousMessage}
+            />
+          ) : (
             <ChatContainer
               currentChat={currentChat}
               socket={socket}
-              handleGoBack={handleGoBack}
+              handleBackToWelcome={handleBackToWelcome}
+              handleStartAnonymousChat={handleStartAnonymousChat}
             />
-          ) : isShowingTopFriends ? (
-            <TopFriendsContainer
-              currentUser={currentUser}
-              handleGoBack={handleHideTopFriends}
-            />
-          ) : (
-            <Welcome handleShowTopFriends={handleShowTopFriends} />
           )}
         </div>
       </Container>
