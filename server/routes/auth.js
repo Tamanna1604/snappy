@@ -25,26 +25,7 @@ router.post("/register", register);
 router.get("/allusers/:id", getAllUsers);
 
 // ✅ Set Avatar (POST)
-router.post("/setavatar/:id", async (req, res, next) => {
-  try {
-    const userId = req.params.id;
-    const avatarImage = req.body.image;
-    const userData = await User.findByIdAndUpdate(
-      userId,
-      {
-        isAvatarImageSet: true,
-        avatarImage,
-      },
-      { new: true }
-    );
-    return res.json({
-      isSet: userData.isAvatarImageSet,
-      image: userData.avatarImage,
-    });
-  } catch (ex) {
-    next(ex);
-  }
-});
+router.post("/setavatar/:id", setAvatar);
 
 // ✅ Logout Route
 router.get("/logout/:id", logOut);

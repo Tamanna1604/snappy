@@ -50,11 +50,24 @@ export default function SetAvatar() {
     const avatarUrl = avatars[selectedAvatar];
 
     try {
-      const { data: svgData } = await axios.get(avatarUrl, { responseType: 'text' });
+      const { data: svgData } = await axios.get(avatarUrl, { 
+        responseType: 'text',
+        timeout: 10000 
+      });
       const base64Image = Buffer.from(svgData).toString('base64');
+      
+      console.log("Sending avatar request to:", `${setAvatarRoute}/${user._id}`);
+      console.log("User ID:", user._id);
+      console.log("Image data length:", base64Image.length);
       
       const { data } = await axios.post(`${setAvatarRoute}/${user._id}`, {
         image: base64Image,
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true,
+        timeout: 30000
       });
 
       console.log("Backend Response:", data);
@@ -69,11 +82,21 @@ export default function SetAvatar() {
         toast.success("Avatar set successfully!");
         navigate("/");
       } else {
-        toast.error(data.msg || "Failed to set avatar. Please try again.", toastOptions);
+        toast.error(data.msg || data.error || "Failed to set avatar. Please try again.", toastOptions);
       }
     } catch (error) {
       console.error("Error setting avatar:", error.response || error);
-      toast.error("An error occurred. Please check the console.", toastOptions);
+      if (error.response) {
+        console.error("Response data:", error.response.data);
+        console.error("Response status:", error.response.status);
+        toast.error(error.response.data?.error || error.response.data?.msg || "Failed to set avatar", toastOptions);
+      } else if (error.request) {
+        console.error("Request error:", error.request);
+        toast.error("Network error. Please check your connection.", toastOptions);
+      } else {
+        console.error("Error:", error.message);
+        toast.error("An error occurred. Please try again.", toastOptions);
+      }
     } finally {
       setIsLoading(false);
     }

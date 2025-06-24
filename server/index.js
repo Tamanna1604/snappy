@@ -69,7 +69,14 @@ app.use("/api/messages", messageRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error("Error details:", {
+    message: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    body: req.body,
+    params: req.params
+  });
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
