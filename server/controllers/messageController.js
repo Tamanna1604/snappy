@@ -44,9 +44,9 @@ module.exports.getAnonymousChatForSender = async (req, res, next) => {
         fromSelf: true, // Since we're only getting messages sent by the current user
         message: msg.message.text,
         id: msg._id.toString(),
-        identityRevealed: msg.identityRevealed || false,
-        identityRevealRequested: msg.identityRevealRequested || false,
-        receivingStopped: msg.receivingStopped || false,
+        identityRevealed: Boolean(msg.identityRevealed),
+        identityRevealRequested: Boolean(msg.identityRevealRequested),
+        receivingStopped: Boolean(msg.receivingStopped),
       };
     });
     res.json(projectedMessages);
@@ -82,8 +82,8 @@ module.exports.getAnonymousInboxForReceiver = async (req, res, next) => {
         message: msg.message.text,
         timestamp: msg.createdAt,
         id: msg._id.toString(),
-        identityRevealed: msg.identityRevealed || false,
-        identityRevealRequested: msg.identityRevealRequested || false,
+        identityRevealed: Boolean(msg.identityRevealed),
+        identityRevealRequested: Boolean(msg.identityRevealRequested),
       };
     });
     
@@ -97,6 +97,24 @@ module.exports.getAnonymousInboxForReceiver = async (req, res, next) => {
 module.exports.addMessage = async (req, res, next) => {
   try {
     const { from, to, message, isAnonymous } = req.body;
+    
+    // If this is an anonymous message, check if the receiver has stopped receiving messages from this sender
+    if (isAnonymous) {
+      const existingMessage = await Messages.findOne({
+        sender: from,
+        users: { $all: [from, to] },
+        isAnonymous: true,
+        receivingStopped: true
+      });
+      
+      if (existingMessage) {
+        return res.status(403).json({ 
+          msg: "This user has stopped receiving anonymous messages from you.",
+          error: "MESSAGES_BLOCKED"
+        });
+      }
+    }
+    
     const data = await Messages.create({
       message: { text: message },
       users: [from, to],
@@ -114,23 +132,22 @@ module.exports.addMessage = async (req, res, next) => {
 module.exports.getTopFriends = async (req, res, next) => {
   try {
     const { userId } = req.params;
-    console.log(`[getTopFriends] Received request for userId: "${userId}"`);
+    
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      console.log(`[getTopFriends] Invalid userId format: ${userId}`);
+      
       return res.status(400).json({ msg: "Invalid user ID format" });
     }
     const objectId = mongoose.Types.ObjectId(userId.trim());
-    console.log(`[getTopFriends] Converted to ObjectId:`, objectId);
+    
 
-    // --- Deep Dive Debugging ---
     
     // Stage 1: Find all messages involving the current user (both regular and anonymous)
     const stage1_match = { $match: { users: objectId } };
     const messagesInvolvingUser = await Messages.aggregate([stage1_match]);
-    console.log(`[getTopFriends] Stage 1 Result (messages involving user): Found ${messagesInvolvingUser.length} messages.`);
+    
     if (messagesInvolvingUser.length === 0) {
-        console.log(`[getTopFriends] NOTE: No messages found for this user. If you recently fixed the message schema, you may need to send new messages for them to be counted.`);
+       
         return res.json([]);
     }
 
@@ -138,7 +155,7 @@ module.exports.getTopFriends = async (req, res, next) => {
     const stage2_unwind = { $unwind: "$users" };
     const stage3_match_other_users = { $match: { users: { $ne: objectId } } };
     const otherUsersInvolved = await Messages.aggregate([stage1_match, stage2_unwind, stage3_match_other_users]);
-    console.log(`[getTopFriends] Stage 3 Result (other users in conversations): Found ${otherUsersInvolved.length} instances.`);
+    
     if (otherUsersInvolved.length === 0) {
         console.log(`[getTopFriends] NOTE: Found messages for the user, but could not isolate other users in the conversations.`);
         return res.json([]);
@@ -147,9 +164,7 @@ module.exports.getTopFriends = async (req, res, next) => {
     // Stage 4: Group by other users and count messages
     const stage4_group = { $group: { _id: "$users", messageCount: { $sum: 1 } } };
     const groupedByUser = await Messages.aggregate([stage1_match, stage2_unwind, stage3_match_other_users, stage4_group]);
-    console.log(`[getTopFriends] Stage 4 Result (grouped by friend): Found ${groupedByUser.length} unique friends.`);
-    console.log(`[getTopFriends] Grouped data:`, JSON.stringify(groupedByUser, null, 2));
-
+    
     // --- Original Full Pipeline (for final result) ---
     const fullPipeline = [
       stage1_match, stage2_unwind, stage3_match_other_users, stage4_group,
@@ -162,7 +177,6 @@ module.exports.getTopFriends = async (req, res, next) => {
 
     const messageCounts = await Messages.aggregate(fullPipeline);
 
-    console.log(`[getTopFriends] Final Aggregation Result for ${userId}:`, JSON.stringify(messageCounts, null, 2));
     res.json(messageCounts);
 
   } catch (ex) {
@@ -273,6 +287,22 @@ module.exports.stopReceivingMessages = async (req, res, next) => {
       },
       { receivingStopped: true }
     );
+
+    // Emit socket event to notify the sender that messages have been blocked
+    try {
+      const io = req.app.get('io');
+      const onlineUsers = req.app.get('onlineUsers');
+      const senderSocketId = onlineUsers.get(message.sender.toString());
+      
+      if (senderSocketId) {
+        io.to(senderSocketId).emit('messages-blocked', {
+          receiverId: message.users.find(u => u.toString() !== message.sender.toString()),
+          message: 'This user has stopped receiving anonymous messages from you.'
+        });
+      }
+    } catch (socketError) {
+      console.error('Error emitting socket event:', socketError);
+    }
 
     res.json({ msg: "Messages stopped successfully" });
   } catch (ex) {

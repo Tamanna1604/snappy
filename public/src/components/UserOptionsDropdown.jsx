@@ -2,14 +2,37 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { IoSettingsSharp } from "react-icons/io5";
+import axios from "axios";
+import { host } from "../utils/APIRoutes";
 
-export default function UserOptionsDropdown() {
+export default function UserOptionsDropdown({ socket }) {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      // Get current user from localStorage
+      const currentUser = JSON.parse(localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY));
+      
+      if (currentUser && currentUser._id) {
+        // Call logout endpoint to update user status
+        await axios.get(`${host}/api/auth/logout/${currentUser._id}`);
+      }
+      
+      // Disconnect socket if it exists
+      if (socket?.current) {
+        socket.current.disconnect();
+      }
+      
+      // Clear localStorage and navigate
+      localStorage.clear();
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Even if logout fails, clear localStorage and navigate
+      localStorage.clear();
+      navigate("/login");
+    }
   };
 
   const handleChangeAvatar = () => {

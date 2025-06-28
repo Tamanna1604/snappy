@@ -1,3 +1,5 @@
+const express = require("express");
+const router = express.Router();
 const {
   getMessages,
   addMessage,
@@ -9,10 +11,24 @@ const {
   stopReceivingMessages,
   getRevealedSenderInfo,
 } = require("../controllers/messageController");
-const router = require("express").Router();
+const { typingStart, typingStop } = require("../controllers/typingController");
 
-router.post("/getmsg/", getMessages);
-router.post("/addmsg/", addMessage);
+// ✅ Logging middleware
+router.use((req, res, next) => {
+  console.log(`Messages API: ${req.method} ${req.url}`);
+  next();
+});
+
+// ✅ Add Message
+router.post("/addmsg", addMessage);
+
+// ✅ Get Messages
+router.post("/getmsg", getMessages);
+
+// ✅ Typing Indicators
+router.post("/typing-start", typingStart);
+router.post("/typing-stop", typingStop);
+
 router.get("/top-friends/:userId", getTopFriends);
 
 // Route for the sender to get their anonymous chat history with a specific user

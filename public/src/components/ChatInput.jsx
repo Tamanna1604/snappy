@@ -1,12 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { BsEmojiSmileFill } from "react-icons/bs";
 import { IoMdSend } from "react-icons/io";
 import styled from "styled-components";
 import Picker from "emoji-picker-react";
+import axios from "axios";
+import { host } from "../utils/APIRoutes";
 
-export default function ChatInput({ handleSendMsg, disabled = false }) {
+export default function ChatInput({ handleSendMsg, disabled = false, currentChat, socket }) {
   const [msg, setMsg] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef(null);
   
   const handleEmojiPickerhideShow = () => {
     if (!disabled) {
@@ -22,13 +26,86 @@ export default function ChatInput({ handleSendMsg, disabled = false }) {
     }
   };
 
-  const sendChat = (event) => {
-    event.preventDefault();
-    if (msg.length > 0 && !disabled) {
-      handleSendMsg(msg);
-      setMsg("");
+  // Handle typing indicators via API
+  const handleTyping = async () => {
+    if (!disabled && currentChat) {
+      try {
+        const currentUser = JSON.parse(localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY));
+        
+        if (!isTyping) {
+          setIsTyping(true);
+          
+          // Call API instead of direct socket emission
+          await axios.post(`${host}/api/messages/typing-start`, {
+            userId: currentUser._id,
+            to: currentChat._id,
+          });
+        }
+
+        // Clear existing timeout
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+
+        // Set new timeout to stop typing indicator
+        typingTimeoutRef.current = setTimeout(async () => {
+          setIsTyping(false);
+          
+          // Call API to stop typing indicator
+          try {
+            await axios.post(`${host}/api/messages/typing-stop`, {
+              userId: currentUser._id,
+              to: currentChat._id,
+            });
+          } catch (error) {
+            console.error("Error stopping typing indicator:", error);
+          }
+        }, 1000); // Stop typing indicator after 1 second of no input
+      } catch (error) {
+        console.error("Error starting typing indicator:", error);
+        setIsTyping(false);
+      }
     }
   };
+
+  const sendChat = async (event) => {
+    event.preventDefault();
+    if (msg.length > 0 && !disabled) {
+      try {
+        const currentUser = JSON.parse(localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY));
+        
+        // Stop typing indicator when sending message
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+        }
+        
+        if (isTyping) {
+          setIsTyping(false);
+          
+          // Call API to stop typing indicator
+          await axios.post(`${host}/api/messages/typing-stop`, {
+            userId: currentUser._id,
+            to: currentChat._id,
+          });
+        }
+        
+        handleSendMsg(msg);
+        setMsg("");
+      } catch (error) {
+        console.error("Error sending message:", error);
+      }
+    }
+  };
+
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <Container>
@@ -44,8 +121,13 @@ export default function ChatInput({ handleSendMsg, disabled = false }) {
       <form className="input-container" onSubmit={(event) => sendChat(event)}>
         <input
           type="text"
-          placeholder={disabled ? "Messages blocked" : "type your message here"}
-          onChange={(e) => !disabled && setMsg(e.target.value)}
+          placeholder={disabled ? "Cannot send messages - user has blocked you" : "type your message here"}
+          onChange={(e) => {
+            if (!disabled) {
+              setMsg(e.target.value);
+              handleTyping();
+            }
+          }}
           value={msg}
           disabled={disabled}
         />

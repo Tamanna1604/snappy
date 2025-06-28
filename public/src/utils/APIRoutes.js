@@ -5,6 +5,7 @@ export const loginRoute = `${host}/api/auth/login`;
 export const registerRoute = `${host}/api/auth/register`;
 export const logoutRoute = `${host}/api/auth/logout`;
 export const allUsersRoute = `${host}/api/auth/allusers`;
+export const contactsRoute = `${host}/api/auth/contacts`;
 export const sendMessageRoute = `${host}/api/messages/addmsg`;
 export const recieveMessageRoute = `${host}/api/messages/getmsg`;
 export const getAnonymousChatForSenderRoute = `${host}/api/messages/get-anonymous-chat`;

@@ -2,8 +2,10 @@ const {
   login,
   register,
   getAllUsers,
+  getContacts,
   setAvatar,
   logOut,
+  getUserStatus,
 } = require("../controllers/userController");
 
 const express = require("express");
@@ -11,7 +13,6 @@ const router = express.Router();
 
 // ✅ Logging middleware (helps debug API calls)
 router.use((req, res, next) => {
-  console.log(`Incoming Request: ${req.method} ${req.url}`);
   next();
 });
 
@@ -23,6 +24,12 @@ router.post("/register", register);
 
 // ✅ Get All Users
 router.get("/allusers/:id", getAllUsers);
+
+// ✅ Get Contacts (users the current user has messaged)
+router.get("/contacts/:id", getContacts);
+
+// ✅ Get User Status
+router.get("/status/:userId", getUserStatus);
 
 // ✅ Set Avatar (POST)
 router.post("/setavatar/:id", setAvatar);

@@ -42,33 +42,49 @@ export default function AnonymousChatContainer({
 
     if (currentChat) {
       fetchAnonymousMessages();
+      
+      // Set up periodic refresh to check for blocked status
+      const intervalId = setInterval(fetchAnonymousMessages, 30000); // Check every 30 seconds
+      
+      return () => clearInterval(intervalId);
     }
   }, [currentChat]);
 
   const handleSendMsg = async (msg) => {
-    if (!canSendMessages) return;
+    if (!canSendMessages) {
+      alert("This user has stopped receiving anonymous messages from you.");
+      return;
+    }
     
     const data = await JSON.parse(
       localStorage.getItem(process.env.REACT_APP_LOCALHOST_KEY)
     );
 
-    await axios.post(sendMessageRoute, {
-      from: data._id,
-      to: currentChat._id,
-      message: msg,
-      isAnonymous: true,
-    });
+    try {
+      await axios.post(sendMessageRoute, {
+        from: data._id,
+        to: currentChat._id,
+        message: msg,
+        isAnonymous: true,
+      });
 
-    socket.current.emit("send-msg", {
-      to: currentChat._id,
-      from: data._id,
-      msg,
-      isAnonymous: true,
-    });
+      socket.current.emit("send-msg", {
+        to: currentChat._id,
+        from: data._id,
+        msg,
+        isAnonymous: true,
+      });
 
-    const msgs = [...messages];
-    msgs.push({ fromSelf: true, message: msg });
-    setMessages(msgs);
+      const msgs = [...messages];
+      msgs.push({ fromSelf: true, message: msg });
+      setMessages(msgs);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      if (error.response?.status === 403) {
+        alert("This user has stopped receiving anonymous messages from you.");
+        setCanSendMessages(false);
+      }
+    }
   };
 
   const handleRevealIdentity = async () => {
@@ -105,10 +121,20 @@ export default function AnonymousChatContainer({
           setMessages((prev) => [...prev, { fromSelf: false, message: data.msg }]);
         }
       };
+      
+      const messagesBlockedListener = (data) => {
+        if (data.receiverId === currentChat._id) {
+          setCanSendMessages(false);
+          alert("This user has stopped receiving anonymous messages from you.");
+        }
+      };
+      
       socket.current.on("msg-recieve", messageListener);
+      socket.current.on("messages-blocked", messagesBlockedListener);
 
       return () => {
         socket.current.off("msg-recieve", messageListener);
+        socket.current.off("messages-blocked", messagesBlockedListener);
       };
     }
   }, [socket, currentChat]);
@@ -132,6 +158,9 @@ export default function AnonymousChatContainer({
           </div>
           <div className="username">
             <h3>Anonymous Chat with {currentChat.username}</h3>
+            {!canSendMessages && (
+              <span className="blocked-indicator">🚫 Messages Blocked</span>
+            )}
           </div>
         </div>
         <div className="header-controls">
@@ -145,11 +174,6 @@ export default function AnonymousChatContainer({
           </button>
         </div>
       </div>
-      {!canSendMessages && (
-        <div className="blocked-notice">
-          <p>This user has stopped receiving anonymous messages from you.</p>
-        </div>
-      )}
       <div className="chat-messages">
         {messages.map((message) => {
           return (
@@ -166,6 +190,14 @@ export default function AnonymousChatContainer({
             </div>
           );
         })}
+        {!canSendMessages && (
+          <div className="blocked-notice">
+            <div className="blocked-content">
+              <span className="blocked-icon">🚫</span>
+              <span className="blocked-text">Messages blocked by this user</span>
+            </div>
+          </div>
+        )}
       </div>
       <ChatInput handleSendMsg={handleSendMsg} disabled={!canSendMessages} />
     </Container>
@@ -205,6 +237,15 @@ const Container = styled.div`
       .username {
         h3 {
           color: white;
+          margin: 0;
+        }
+        
+        .blocked-indicator {
+          color: #e74c3c;
+          font-size: 0.8rem;
+          font-weight: bold;
+          display: block;
+          margin-top: 0.2rem;
         }
       }
     }
@@ -241,11 +282,29 @@ const Container = styled.div`
     }
   }
   .blocked-notice {
-    background-color: #e74c3c;
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
     color: white;
-    padding: 0.5rem;
-    text-align: center;
-    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    margin: 0.5rem 0;
+    box-shadow: 0 2px 4px rgba(231, 76, 60, 0.3);
+    align-self: center;
+    max-width: 300px;
+    
+    .blocked-content {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      
+      .blocked-icon {
+        font-size: 1rem;
+      }
+      
+      .blocked-text {
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+    }
   }
   .chat-messages {
     padding: 1rem 2rem;
@@ -264,6 +323,7 @@ const Container = styled.div`
     .message {
       display: flex;
       align-items: center;
+      width: 100%;
       .content {
         max-width: 40%;
         overflow-wrap: break-word;
@@ -287,6 +347,11 @@ const Container = styled.div`
       .content {
         background-color: #95a5a6;
       }
+    }
+    
+    .blocked-notice {
+      align-self: center;
+      margin-top: auto;
     }
   }
 `; 

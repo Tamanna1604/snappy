@@ -15,6 +15,8 @@ export default function ChatContainer({
   const [messages, setMessages] = useState([]);
   const scrollRef = useRef();
   const [arrivalMessage, setArrivalMessage] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingUser, setTypingUser] = useState("");
 
   useEffect(async () => {
     const data = await JSON.parse(
@@ -65,7 +67,29 @@ export default function ChatContainer({
           setArrivalMessage({ fromSelf: false, message: data.msg });
         }
       });
+
+      // Handle typing indicators
+      socket.current.on("typing-start", (data) => {
+        if (data.from === currentChat._id) {
+          setIsTyping(true);
+          setTypingUser(currentChat.username);
+        }
+      });
+
+      socket.current.on("typing-stop", (data) => {
+        if (data.from === currentChat._id) {
+          setIsTyping(false);
+          setTypingUser("");
+        }
+      });
     }
+
+    return () => {
+      if (socket.current) {
+        socket.current.off("typing-start");
+        socket.current.off("typing-stop");
+      }
+    };
   }, [currentChat, socket]);
 
   useEffect(() => {
@@ -91,6 +115,12 @@ export default function ChatContainer({
           </div>
           <div className="username">
             <h3>{currentChat.username}</h3>
+            <div className="status">
+              <span className={`status-indicator ${currentChat.isOnline ? 'online' : 'offline'}`}></span>
+              <span className="status-text">
+                {currentChat.isOnline ? 'Online' : 'Offline'}
+              </span>
+            </div>
           </div>
         </div>
         <button
@@ -116,8 +146,22 @@ export default function ChatContainer({
             </div>
           );
         })}
+        {isTyping && (
+          <div className="typing-indicator">
+            <div className="typing-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <p>{typingUser} is typing...</p>
+          </div>
+        )}
       </div>
-      <ChatInput handleSendMsg={handleSendMsg} />
+      <ChatInput 
+        handleSendMsg={handleSendMsg} 
+        currentChat={currentChat}
+        socket={socket}
+      />
     </Container>
   );
 }
@@ -156,6 +200,33 @@ const Container = styled.div`
       .username {
         h3 {
           color: white;
+          margin: 0;
+        }
+        .status {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-top: 0.2rem;
+          
+          .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            
+            &.online {
+              background-color: #4CAF50;
+              box-shadow: 0 0 5px #4CAF50;
+            }
+            
+            &.offline {
+              background-color: #9e9e9e;
+            }
+          }
+          
+          .status-text {
+            color: #b3b3b3;
+            font-size: 0.8rem;
+          }
         }
       }
     }
@@ -198,9 +269,6 @@ const Container = styled.div`
         font-size: 1.1rem;
         border-radius: 1rem;
         color: #d1d1d1;
-        @media screen and (min-width: 720px) and (max-width: 1080px) {
-          max-width: 70%;
-        }
       }
     }
     .sended {
@@ -214,6 +282,48 @@ const Container = styled.div`
       .content {
         background-color: #9900ff20;
       }
+    }
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background-color: #ffffff10;
+      border-radius: 1rem;
+      max-width: fit-content;
+      
+      .typing-dots {
+        display: flex;
+        gap: 0.2rem;
+        
+        span {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background-color: #9a86f3;
+          animation: typing 1.4s infinite ease-in-out;
+          
+          &:nth-child(1) { animation-delay: -0.32s; }
+          &:nth-child(2) { animation-delay: -0.16s; }
+        }
+      }
+      
+      p {
+        color: #b3b3b3;
+        font-size: 0.9rem;
+        margin: 0;
+      }
+    }
+  }
+  
+  @keyframes typing {
+    0%, 80%, 100% {
+      transform: scale(0.8);
+      opacity: 0.5;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
     }
   }
 `;

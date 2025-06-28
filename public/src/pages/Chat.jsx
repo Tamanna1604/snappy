@@ -3,13 +3,14 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import styled from "styled-components";
-import { allUsersRoute, host } from "../utils/APIRoutes";
+import { allUsersRoute, contactsRoute, host } from "../utils/APIRoutes";
 import ChatContainer from "../components/ChatContainer";
 import Contacts from "../components/Contacts";
 import Welcome from "../components/Welcome";
 import TopFriendsContainer from "../components/TopFriendsContainer";
 import AnonymousChatContainer from "../components/AnonymousChatContainer";
 import AnonymousInbox from "../components/AnonymousInbox";
+import AllUsersContainer from "../components/AllUsersContainer";
 
 export default function Chat() {
   const navigate = useNavigate();
@@ -18,10 +19,22 @@ export default function Chat() {
   const [currentChat, setCurrentChat] = useState(undefined);
   const [currentUser, setCurrentUser] = useState(undefined);
   const [showTopFriends, setShowTopFriends] = useState(false);
+  const [showAllUsers, setShowAllUsers] = useState(false);
   const [isAnonymousChat, setIsAnonymousChat] = useState(false);
   const [anonymousChatUser, setAnonymousChatUser] = useState(undefined);
   const [showAnonymousInbox, setShowAnonymousInbox] = useState(false);
   const [hasNewAnonymousMessage, setHasNewAnonymousMessage] = useState(false);
+
+  const refreshContacts = async () => {
+    if (currentUser && currentUser.isAvatarImageSet) {
+      try {
+        const data = await axios.get(`${contactsRoute}/${currentUser._id}`);
+        setContacts(data.data);
+      } catch (error) {
+        console.error("Error refreshing contacts:", error);
+      }
+    }
+  };
 
   useEffect(() => {
     async function fetchUser() {
@@ -48,8 +61,38 @@ export default function Chat() {
         }
       });
 
+      // Listen for online/offline events and refresh contacts
+      socket.current.on("user-online", () => {
+        refreshContacts();
+      });
+
+      socket.current.on("user-offline", () => {
+        refreshContacts();
+      });
+
+      // Handle page unload (browser close, refresh, navigation)
+      const handleBeforeUnload = async () => {
+        try {
+          if (socket.current) {
+            socket.current.disconnect();
+          }
+          // Call logout endpoint
+          await axios.get(`${host}/api/auth/logout/${currentUser._id}`);
+        } catch (error) {
+          console.error("Error during page unload:", error);
+        }
+      };
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
       return () => {
-        socket.current.off("msg-recieve");
+        if (socket.current) {
+          socket.current.off("msg-recieve");
+          socket.current.off("user-online");
+          socket.current.off("user-offline");
+          socket.current.disconnect();
+        }
+        window.removeEventListener('beforeunload', handleBeforeUnload);
       };
     }
   }, [currentUser]);
@@ -58,7 +101,7 @@ export default function Chat() {
     async function fetchContacts() {
       if (currentUser) {
         if (currentUser.isAvatarImageSet) {
-          const data = await axios.get(`${allUsersRoute}/${currentUser._id}`);
+          const data = await axios.get(`${contactsRoute}/${currentUser._id}`);
           setContacts(data.data);
         } else {
           navigate("/setAvatar");
@@ -66,11 +109,17 @@ export default function Chat() {
       }
     }
     fetchContacts();
+    
+    // Set up periodic refresh of contacts to keep online status accurate
+    const intervalId = setInterval(fetchContacts, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(intervalId);
   }, [currentUser, navigate]);
 
   const handleChatChange = (chat) => {
     setCurrentChat(chat);
     setShowTopFriends(false);
+    setShowAllUsers(false);
     setIsAnonymousChat(false);
     setShowAnonymousInbox(false);
   };
@@ -80,6 +129,7 @@ export default function Chat() {
     setIsAnonymousChat(true);
     setCurrentChat(undefined);
     setShowTopFriends(false);
+    setShowAllUsers(false);
     setShowAnonymousInbox(false);
   };
 
@@ -88,12 +138,14 @@ export default function Chat() {
     setHasNewAnonymousMessage(false);
     setCurrentChat(undefined);
     setShowTopFriends(false);
+    setShowAllUsers(false);
     setIsAnonymousChat(false);
   };
 
   const handleBackToWelcome = () => {
     setCurrentChat(undefined);
     setShowTopFriends(false);
+    setShowAllUsers(false);
     setIsAnonymousChat(false);
     setShowAnonymousInbox(false);
   };
@@ -104,6 +156,18 @@ export default function Chat() {
 
   const handleHideTopFriends = () => {
     setShowTopFriends(false);
+  };
+
+  const handleShowAllUsers = () => {
+    setShowAllUsers(true);
+  };
+
+  const handleUserSelectFromAllUsers = (user) => {
+    setCurrentChat(user);
+    setShowAllUsers(false);
+    setShowTopFriends(false);
+    setIsAnonymousChat(false);
+    setShowAnonymousInbox(false);
   };
 
   return (
@@ -130,11 +194,19 @@ export default function Chat() {
               currentUser={currentUser}
               handleGoBack={handleBackToWelcome}
             />
+          ) : showAllUsers ? (
+            <AllUsersContainer
+              currentUser={currentUser}
+              handleGoBack={handleBackToWelcome}
+              onUserSelect={handleUserSelectFromAllUsers}
+            />
           ) : currentChat === undefined ? (
             <Welcome
               handleShowTopFriends={() => setShowTopFriends(true)}
               onShowAnonymousInbox={handleShowAnonymousInbox}
               hasNewAnonymousMessage={hasNewAnonymousMessage}
+              socket={socket}
+              onShowAllUsers={handleShowAllUsers}
             />
           ) : (
             <ChatContainer

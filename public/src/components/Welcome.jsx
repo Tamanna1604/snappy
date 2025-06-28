@@ -8,7 +8,7 @@ import UserOptionsDropdown from "./UserOptionsDropdown";
 // ✅ Use correct asset path for public folder
 
 
-export default function Welcome({ handleShowTopFriends, onShowAnonymousInbox, hasNewAnonymousMessage }) {
+export default function Welcome({ handleShowTopFriends, onShowAnonymousInbox, hasNewAnonymousMessage, socket, onShowAllUsers }) {
   const [userName, setUserName] = useState("");
 
   useEffect(() => {
@@ -31,8 +31,8 @@ export default function Welcome({ handleShowTopFriends, onShowAnonymousInbox, ha
             Anonymous Inbox
             {hasNewAnonymousMessage && <div className="notification-dot"></div>}
           </button>
-          <button className="btn-secondary">Game Mode</button>
-          <UserOptionsDropdown />
+          <button onClick={onShowAllUsers} className="btn-secondary">All Users</button>
+          <UserOptionsDropdown socket={socket} />
         </div>
       </div>
       <img src={Robot} alt="Welcome Bot" onError={(e) => console.error("Image failed to load:", e)} />

@@ -64,6 +64,16 @@ app.get("/ping", (_req, res) => {
   return res.json({ msg: "Ping Successful" });
 });
 
+// Debug route to check online users
+app.get("/debug/online-users", (_req, res) => {
+  const onlineUsersList = Array.from(global.onlineUsers.keys());
+  return res.json({ 
+    onlineUsers: onlineUsersList,
+    count: onlineUsersList.length,
+    mapSize: global.onlineUsers.size
+  });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 
@@ -111,15 +121,59 @@ const io = socket(server, {
 });
 
 global.onlineUsers = new Map();
+global.typingUsers = new Map(); // Track who is typing to whom
+
+// Make socket instances available to API routes
+app.set('io', io);
+app.set('onlineUsers', global.onlineUsers);
+app.set('typingUsers', global.typingUsers);
+
+// Cleanup function to reset all online statuses on server start
+async function resetOnlineStatuses() {
+  try {
+    const User = require("./models/userModel");
+    await User.updateMany({}, { isOnline: false });
+    console.log("Reset all user online statuses on server start");
+  } catch (error) {
+    console.error("Error resetting online statuses:", error);
+  }
+}
+
+// Call cleanup function when server starts
+resetOnlineStatuses();
+
 io.on("connection", (socket) => {
   global.chatSocket = socket;
-  socket.on("add-user", (userId) => {
+  
+  // User connects and goes online
+  socket.on("add-user", async (userId) => {
     onlineUsers.set(userId, socket.id);
+    
+    // Update user's online status in database
+    try {
+      const User = require("./models/userModel");
+      await User.findByIdAndUpdate(userId, {
+        isOnline: true
+      });
+      
+      // Broadcast to all other users that this user is online
+      socket.broadcast.emit("user-online", { userId });
+    } catch (error) {
+      console.error("Error updating user online status:", error);
+    }
   });
 
   socket.on("send-msg", (data) => {
     const sendUserSocket = onlineUsers.get(data.to);
     if (sendUserSocket) {
+      // Clear typing indicator when message is sent
+      const typingKey = `${data.from}-${data.to}`;
+      const timeoutId = typingUsers.get(typingKey);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        typingUsers.delete(typingKey);
+      }
+      
       if (data.isAnonymous) {
         // For anonymous messages, send the whole data object
         // This includes 'from' so the recipient client can manage notifications
@@ -130,6 +184,44 @@ io.on("connection", (socket) => {
           msg: data.msg,
           from: data.from,
         });
+      }
+    }
+  });
+
+  // Handle user disconnect
+  socket.on("disconnect", async () => {
+    
+    // Find user by socket ID and mark them as offline
+    let disconnectedUserId = null;
+    for (const [userId, socketId] of onlineUsers.entries()) {
+      if (socketId === socket.id) {
+        disconnectedUserId = userId;
+        break;
+      }
+    }
+    
+    if (disconnectedUserId) {
+      onlineUsers.delete(disconnectedUserId);
+      
+      // Update user's offline status in database
+      try {
+        const User = require("./models/userModel");
+        await User.findByIdAndUpdate(disconnectedUserId, {
+          isOnline: false
+        });
+      
+        // Broadcast to all other users that this user is offline
+        socket.broadcast.emit("user-offline", { userId: disconnectedUserId });
+      } catch (error) {
+        console.error("Error updating user offline status:", error);
+      }
+    }
+    
+    // Clean up typing indicators for this user
+    for (const [key, timeoutId] of typingUsers.entries()) {
+      if (key.startsWith(disconnectedUserId + '-') || key.endsWith('-' + disconnectedUserId)) {
+        clearTimeout(timeoutId);
+        typingUsers.delete(key);
       }
     }
   });
