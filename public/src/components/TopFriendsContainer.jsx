@@ -14,33 +14,7 @@ const getFriendshipRank = (messageCount) => {
 export default function TopFriendsContainer({ currentUser, handleGoBack }) {
   const [topFriends, setTopFriends] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const friendsEndRef = useRef(null);
-  const friendsContainerRef = useRef(null);
-
-  const scrollToBottom = () => {
-    friendsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const handleScroll = () => {
-    if (friendsContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = friendsContainerRef.current;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-      setShowScrollButton(!isNearBottom);
-    }
-  };
-
-  useEffect(() => {
-    const container = friendsContainerRef.current;
-    if (container) {
-      container.addEventListener('scroll', handleScroll);
-      return () => container.removeEventListener('scroll', handleScroll);
-    }
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [topFriends]);
+  const [hasAnonymousMessages, setHasAnonymousMessages] = useState(false);
 
   useEffect(() => {
     const fetchTopFriends = async () => {
@@ -48,6 +22,10 @@ export default function TopFriendsContainer({ currentUser, handleGoBack }) {
         try {
           const { data } = await axios.get(`${topFriendsRoute}/${currentUser._id}`);
           setTopFriends(data);
+          
+          // Check if user has anonymous messages
+          const hasAnonMessages = localStorage.getItem('hasAnonymousMessages') === 'true';
+          setHasAnonymousMessages(hasAnonMessages);
         } catch (error) {
           // Silent error handling
         } finally {
@@ -67,52 +45,55 @@ export default function TopFriendsContainer({ currentUser, handleGoBack }) {
           <IoArrowBack />
         </button>
         <h1>Your Top Friends</h1>
+        {hasAnonymousMessages && (
+          <div className="anon-indicator">
+            <span className="anon-icon">👻</span>
+            <span className="anon-text">Anonymous Messages</span>
+          </div>
+        )}
       </div>
-      <div className="friends-list" ref={friendsContainerRef}>
+      <div className="friends-container">
         {isLoading ? (
           <div className="loading-container">
             <p>Loading top friends...</p>
           </div>
         ) : topFriends.length > 0 ? (
-          topFriends.map((friend) => {
-            const { rank, symbol } = getFriendshipRank(friend.messageCount);
-            return (
-              <div className="friend-card" key={friend._id}>
-                <img src={`data:image/svg+xml;base64,${friend.avatarImage}`} alt="avatar" />
-                <h2>{friend.username}</h2>
-                <div className="rank">
-                  {symbol} {rank}
+          <div className="friends-grid">
+            {topFriends.map((friend, index) => {
+              const { rank, symbol } = getFriendshipRank(friend.messageCount);
+              return (
+                <div className={`friend-card rank-${index + 1}`} key={friend._id}>
+                  <div className="rank-badge">
+                    #{index + 1}
+                  </div>
+                  <img src={`data:image/svg+xml;base64,${friend.avatarImage}`} alt="avatar" />
+                  <h2>{friend.username}</h2>
+                  <div className="rank">
+                    {symbol} {rank}
+                  </div>
+                  <div className="message-count">
+                    {friend.messageCount} messages
+                  </div>
                 </div>
-                <div className="message-count">
-                  {friend.messageCount} messages
-                </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         ) : (
           <div className="empty-state">
             <p>No friends yet! Start a conversation to build your ranks.</p>
           </div>
         )}
-        <div ref={friendsEndRef} />
       </div>
-      {showScrollButton && (
-        <button className="scroll-to-bottom-btn" onClick={scrollToBottom}>
-          <IoArrowDown />
-        </button>
-      )}
     </Container>
   );
 }
 
 const Container = styled.div`
   display: grid;
-  grid-template-rows: 10% 80% 10%;
+  grid-template-rows: 15% 85%;
   gap: 0.1rem;
   overflow: hidden;
-  @media screen and (min-width: 720px) and (max-width: 1080px) {
-    grid-template-rows: 15% 70% 15%;
-  }
+  background-color: #080420;
 
   .header {
     display: flex;
@@ -120,6 +101,7 @@ const Container = styled.div`
     align-items: center;
     padding: 0 2rem;
     background-color: #2c3e50;
+    position: relative;
 
     .back-button {
       background: transparent;
@@ -134,23 +116,65 @@ const Container = styled.div`
       margin: 0;
       color: white;
     }
+
+    .anon-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: white;
+      font-size: 0.9rem;
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      padding: 0.5rem 1rem;
+      border-radius: 1rem;
+      animation: pulse 2s infinite;
+      box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+          box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+        }
+        50% {
+          transform: scale(1.05);
+          box-shadow: 0 4px 12px rgba(231, 76, 60, 0.5);
+        }
+        100% {
+          transform: scale(1);
+          box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+        }
+      }
+
+      .anon-icon {
+        font-size: 1.2rem;
+        animation: bounce 1s infinite;
+        
+        @keyframes bounce {
+          0%, 20%, 50%, 80%, 100% {
+            transform: translateY(0);
+          }
+          40% {
+            transform: translateY(-5px);
+          }
+          60% {
+            transform: translateY(-3px);
+          }
+        }
+      }
+
+      .anon-text {
+        font-size: 0.9rem;
+        font-weight: bold;
+      }
+    }
   }
 
-  .friends-list {
+  .friends-container {
     padding: 1rem 2rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    overflow: auto;
-    
-    &::-webkit-scrollbar {
-      width: 0.2rem;
-      &-thumb {
-        background-color: #ffffff39;
-        width: 0.1rem;
-        border-radius: 1rem;
-      }
-    }
+    justify-content: center;
+    align-items: center;
+    height: 100%;
     
     .loading-container, .empty-state {
       display: flex;
@@ -161,63 +185,111 @@ const Container = styled.div`
       font-size: 1.1rem;
     }
     
-    .friend-card {
-      background-color: #34495e;
-      padding: 1.5rem;
-      border-radius: 1rem;
-      display: flex;
-      flex-direction: column;
+    .friends-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 800px;
+      height: 100%;
       align-items: center;
-      gap: 1rem;
-      border-left: 4px solid #3498db;
       
-      img {
-        height: 4rem;
-        width: 4rem;
-        border-radius: 50%;
+      .friend-card {
+        background: linear-gradient(135deg, #34495e, #2c3e50);
+        padding: 2rem 1.5rem;
+        border-radius: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        position: relative;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        
+        &:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+        
+        &.rank-1 {
+          border: 3px solid #ffd700;
+          background: linear-gradient(135deg, #34495e, #2c3e50);
+          box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3);
+          
+          .rank-badge {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #2c3e50;
+          }
+        }
+        
+        &.rank-2 {
+          border: 3px solid #c0c0c0;
+          background: linear-gradient(135deg, #34495e, #2c3e50);
+          box-shadow: 0 4px 20px rgba(192, 192, 192, 0.3);
+          
+          .rank-badge {
+            background: linear-gradient(135deg, #c0c0c0, #e5e5e5);
+            color: #2c3e50;
+          }
+        }
+        
+        &.rank-3 {
+          border: 3px solid #cd7f32;
+          background: linear-gradient(135deg, #34495e, #2c3e50);
+          box-shadow: 0 4px 20px rgba(205, 127, 50, 0.3);
+          
+          .rank-badge {
+            background: linear-gradient(135deg, #cd7f32, #daa520);
+            color: white;
+          }
+        }
+        
+        .rank-badge {
+          position: absolute;
+          top: -10px;
+          right: -10px;
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          font-size: 0.8rem;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        img {
+          height: 5rem;
+          width: 5rem;
+          border-radius: 50%;
+          border: 3px solid #3498db;
+          box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        
+        h2 {
+          color: white;
+          margin: 0;
+          font-size: 1.3rem;
+          font-weight: bold;
+        }
+        
+        .rank {
+          font-size: 1.1rem;
+          font-weight: bold;
+          color: #ffd700;
+          text-align: center;
+        }
+        
+        .message-count {
+          font-size: 0.9rem;
+          color: #bdc3c7;
+          background: rgba(52, 152, 219, 0.2);
+          padding: 0.3rem 0.8rem;
+          border-radius: 1rem;
+          border: 1px solid #3498db;
+        }
       }
-      
-      h2 {
-        color: white;
-        margin: 0;
-        font-size: 1.2rem;
-      }
-      
-      .rank {
-        font-size: 1.1rem;
-        font-weight: bold;
-        color: #ffd700;
-      }
-      
-      .message-count {
-        font-size: 0.9rem;
-        color: #bdc3c7;
-      }
-    }
-  }
-
-  .scroll-to-bottom-btn {
-    position: absolute;
-    bottom: 2rem;
-    right: 2rem;
-    width: 3rem;
-    height: 3rem;
-    border-radius: 50%;
-    background: #3498db;
-    color: white;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
-    z-index: 10;
-    
-    &:hover {
-      background: #2980b9;
-      transform: scale(1.1);
     }
   }
 `; 

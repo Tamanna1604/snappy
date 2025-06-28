@@ -45,6 +45,9 @@ export default function AnonymousInbox({ currentUser, handleBack }) {
           );
           setMessages(data);
           
+          // Clear the anonymous messages flag since user is checking their inbox
+          localStorage.removeItem('hasAnonymousMessages');
+          
           // Fetch sender info for messages with revealed identity
           const messagesWithRevealedIdentity = data.filter(msg => msg.identityRevealed);
           for (const msg of messagesWithRevealedIdentity) {

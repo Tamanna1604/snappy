@@ -169,7 +169,7 @@ module.exports.getTopFriends = async (req, res, next) => {
     const fullPipeline = [
       stage1_match, stage2_unwind, stage3_match_other_users, stage4_group,
       { $sort: { messageCount: -1 } },
-      { $limit: 5 },
+      { $limit: 3 },
       { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "friendInfo" } },
       { $unwind: "$friendInfo" },
       { $project: { _id: 1, username: "$friendInfo.username", avatarImage: "$friendInfo.avatarImage", messageCount: 1 } },

@@ -58,6 +58,8 @@ export default function Chat() {
       socket.current.on("msg-recieve", (data) => {
         if (data.isAnonymous) {
           setHasNewAnonymousMessage(true);
+          // Set flag for anonymous messages animation
+          localStorage.setItem('hasAnonymousMessages', 'true');
         }
       });
 
