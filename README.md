@@ -6,6 +6,8 @@ Snappy is chat application build with the power of MERN Stack. You can find the 
 ![image](https://github.com/user-attachments/assets/01dcb3c2-1cb8-4415-8a77-824d4bd707e6)
 ![image](https://github.com/user-attachments/assets/50605703-6a48-4708-b81c-669b1bb05707)
 ![image](https://github.com/user-attachments/assets/4660334c-473e-4530-b3a0-b4e53b7beb40)
+![image](https://github.com/user-attachments/assets/a2585108-645c-4ab5-8eaf-49125681dcd5)
+
 
 
 
